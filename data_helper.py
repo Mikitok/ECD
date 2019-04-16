@@ -151,8 +151,6 @@ def padding_text(texts, mask, padding_word=0, maxlength=None):
     # print("texts", texts)
     for i in range(len(texts)):
         text = texts[i]
-        # print(i)
-        # print("textsi",texts[i])
         num_padding = sequence_length - len(text)
 
         if num_padding < 0: # Prediction: 太长删掉
@@ -165,8 +163,6 @@ def padding_text(texts, mask, padding_word=0, maxlength=None):
         padded_texts.append(padded_text)
     return padded_texts
 
-
-
 def doc2vec(article, wordindex):
     textvec=[]
     texts=[]
@@ -177,7 +173,7 @@ def doc2vec(article, wordindex):
             if word in wordindex.keys():
                 t.append(word)
                 s.append(wordindex[word])
-        textvec.append(np.array(s))
+        textvec.append(s)
         texts.append(t)
     return texts, textvec
 

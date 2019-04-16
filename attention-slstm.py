@@ -244,7 +244,7 @@ class Classifer(object):
             # softmax on each hidden dimension
             reshaped_gated_f_t = tf.reshape(gated_f_t, [shape[0], shape[1], hidden_size]) + mask_softmax_score_expanded
             gated_softmax_scores = tf.nn.softmax(
-                tf.concat([reshaped_gated_f_t, tf.expand_dims(gated_d_t, axis=1)], axis=1), dim=1)
+                tf.concat([reshaped_gated_f_t, tf.expand_dims(gated_d_t, axis=1)], axis=1), axis=1)
             # split the softmax scores
             new_reshaped_gated_f_t = gated_softmax_scores[:, :shape[1], :]
             new_gated_d_t = gated_softmax_scores[:, shape[1]:, :]
@@ -320,7 +320,7 @@ class Classifer(object):
                 f3_t, axis=1), tf.expand_dims(f4_t, axis=1), tf.expand_dims(i_t, axis=1)
 
             five_gates = tf.concat([f1_t, f2_t, f3_t, f4_t, i_t], axis=1)
-            five_gates = tf.nn.softmax(five_gates, dim=1)
+            five_gates = tf.nn.softmax(five_gates, axis=1)
             f1_t, f2_t, f3_t, f4_t, i_t = tf.split(five_gates, num_or_size_splits=5, axis=1)
 
             f1_t, f2_t, f3_t, f4_t, i_t = tf.squeeze(f1_t, axis=1), tf.squeeze(f2_t, axis=1), tf.squeeze(f3_t,
@@ -379,7 +379,7 @@ class Classifer(object):
         sentence_hidden_states, sentence_cell_states, sentence_dummynode_hidden_states = self.slstm_cell("sentence_slstm", config.hidden_size, self.sentence_mask, sentence_initial_hidden_states, sentence_initial_cell_states, config.layer)
         sentence_representation = sentence_hidden_states + tf.expand_dims(sentence_dummynode_hidden_states, axis=1)
 
-        sentence_representation, sentence_alphas = attention('sentence_attenttion', sentence_representation, config.attention_size, return_alphas=True)
+        sentence_representation, sentence_alphas = attention('sentence_attenttion', sentence_representation, config, return_alphas=True)
         # sentence_representation=tf.reduce_mean(sentence_representation,axis=1)
         sentence_representation=tf.reshape(sentence_representation,[tf.cast(config.batch_size, dtype='int32'), tf.cast(self.shape[0]/config.batch_size, dtype='int32'), tf.cast(config.hidden_size, dtype='int32')])
         self.sentence_representation = sentence_representation
@@ -392,7 +392,7 @@ class Classifer(object):
 
         text_hidden_states, text_cell_state, text_dummynode_hidden_states = self.slstm_cell("text_slstm", config.hidden_size, self.text_mask, text_initial_hidden_states, text_initial_cell_states, config.layer)
         text_representation = text_hidden_states + tf.expand_dims(text_dummynode_hidden_states, axis=1)
-        text_representation, text_alphas = attention('text_attenttion',text_representation, config.attention_size, return_alphas=True)
+        text_representation, text_alphas = attention('text_attenttion',text_representation, config, return_alphas=True)
         self.text_alphas = text_alphas
         # text_representation=tf.reduce_mean(sentence_representation,axis=1)
         self.text_representation = text_representation
@@ -469,12 +469,13 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
     minibatches = get_minibatches_idx(n_samples, config.batch_size, shuffle=False)
 
     correct = 0.
+    target_correct=0.0
     total = 0
     total_cost = 0
     prog = Progbar(target=len(minibatches))
     # dummynode_hidden_states_collector=np.array([[0]*config.hidden_size])
 
-    to_print_total = np.zeros([2, config.num_label])
+    # to_print_total = np.zeros([2, config.num_label])
     corr = data[5]
     for i, inds in enumerate(minibatches):
         # print("i:",i,"inds:",inds)
@@ -484,6 +485,7 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
         multi = [data[2][j] for j in inds]
         length = [data[3][j] for j in inds]
         rank = [data[4][j] for j in inds]
+        target=[data[6][j] for j in inds]
 
         ranksignal, prosignal = signalMatrix(multi, rank, length, config.num_label)
 
@@ -508,8 +510,13 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
         count, _, cost, to_print, prediction, text_alphas=session.run([model.accuracy, eval_op, model.cost, model.to_print, model.prediction, model.text_alphas],{model.input_data: x, model.labels: y, model.sentence_mask:sentence_mask, model.text_mask:text_mask , model.keep_prob: keep_prob, model.signal: prosignal, model.length: length, model.corr:corr})
         # to_print = session.run([model.to_print], {model.input_data: x, model.labels: y, model.sentence_mask:sentece_mask.astype(int), model.text_mask:text_mask.astype(int), model.keep_prob: keep_prob})
 
-        if not is_training:
-            to_print_total = np.concatenate((to_print_total, to_print), axis=0)
+        # target predict
+        target_predict=np.argmax(text_alphas)
+        target_count=np.equal(target_predict,target)
+        target_correct=target_correct+target_count
+
+        # if not is_training:
+        #     to_print_total = np.concatenate((to_print_total, to_print), axis=0)
 
         correct += count
         total += len(inds)
@@ -520,9 +527,10 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
     print("Total loss:")
     print(total_cost)
     accuracy = correct / total
-    return accuracy, to_print_total
+    target_accuracy = target_correct/total
+    return accuracy, target_accuracy
 
-def train_test_model(config, i, session, model, train_dataset, test_dataset, best_acc, times, num):
+def train_test_model(config, i, session, model, train_dataset, test_dataset, times):
     # compute lr_decay
     lr_decay = config.lr_decay ** max(i - config.max_epoch, 0.0)
     # update learning rate
@@ -531,46 +539,41 @@ def train_test_model(config, i, session, model, train_dataset, test_dataset, bes
     # training
     print("Epoch: %d Learning rate: %.5f" % (i + 1, session.run(model.lr)))
     start_time = time.time()
-    train_acc, to_print_total = run_epoch(session, config, model, train_dataset, model.train_op, config.keep_prob, True)
+    train_acc, train_target_acc = run_epoch(session, config, model, train_dataset, model.train_op, config.keep_prob, True)
     # train_acc, to_print_total = run_epoch(session, config, model, train_dataset, config.keep_prob, True)
-    print("Training Emotion Accuracy = %.4f, time = %.3f seconds\n" % (train_acc, time.time() - start_time))
+    print("Train Emotion Accuracy = %.4f, Train Target Accuracy = %.4f, time = %.3f seconds\n" % (train_acc, train_target_acc, time.time() - start_time))
 
     # testing
     start_time = time.time()
-    test_acc, to_print_total = run_epoch(session, config, model, test_dataset, tf.no_op(), 1, False)
-    print("Test Accuracy = %.4f\n" % test_acc)
+    test_acc, test_target_acc = run_epoch(session, config, model, test_dataset, tf.no_op(), 1, False)
+    print("Test Accuracy = %.4f\n, Target Accuracy = %.4f" % (test_acc, test_target_acc))
     print("Time = %.3f seconds\n" % (time.time() - start_time))
 
-    if test_acc > best_acc:
-        best_acc = test_acc
-        print("Best accuracy, save results to file.")
-        path = './run_result/' + dataset_name + '_outputs_' + str(times) + '.txt'
-        f = open(path, 'w')
-        f.write(str(best_acc) + '\n')
-        for i in range(2, to_print_total.shape[0]):
-            for d in to_print_total[i]:
-                f.write(str(d) + ' ')
-            f.write('\n')
-        f.close()
+    # if test_acc > best_acc:
+    #     best_acc = test_acc
+    #     print("Best accuracy, save results to file.")
+    #     path = './run_result/' + dataset_name + '_outputs_' + str(times) + '.txt'
+    #     f = open(path, 'w')
+    #     f.write(str(best_acc) + '\n')
+    #     for i in range(2, to_print_total.shape[0]):
+    #         for d in to_print_total[i]:
+    #             f.write(str(d) + ' ')
+    #         f.write('\n')
+    #     f.close()
 
-    # best_acc = test_acc
-    # print("Best accuracy, save results to file.")
-    # path = './run_result/' + dataset_name + '_outputs_' + str(times) + '-epoch' + str(num) + '.txt'
-    # f = open(path, 'w')
-    # f.write(str(best_acc) + '\n')
-    # for i in range(2, to_print_total.shape[0]):
-    #     for d in to_print_total[i]:
-    #         f.write(str(d) + ' ')
-    #     f.write('\n')
-    # f.close()
+    print("Save results to file.")
+    path = './run_result/' + dataset_name + '_outputs.txt'
+    train_print = "Training Emotion Accuracy = " + str(train_acc) + ", Training Target Accuracy = " + str(train_target_acc) + "\n"
+    test_print = "Testing Emotion Accuracy = " + str(test_acc) + ", Testing Target Accuracy = " + str(test_target_acc) + "\n"
+    str = str(times)+':\n' + train_print + test_print
+    with open(path, 'a+', encoding='UTF-8') as file:
+        file.write(str)
 
-    # return valid_acc, test_acc
-    return best_acc
+    return
 
 def start_epoches(config, session, classifier, train_dataset, test_dataset, times):
-    acc = 0
     for i in range(config.max_max_epoch):
-        acc = train_test_model(config, i, session, classifier, train_dataset, test_dataset, acc, times, i)
+        train_test_model(config, i, session, classifier, train_dataset, test_dataset, times)
 
 def word_to_vec(matrix, session, config, *args):
     print("word2vec shape: ", matrix.shape)

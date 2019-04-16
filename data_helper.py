@@ -127,6 +127,18 @@ def word2vec_embedding(texts, modelpath, wordsize):
         wordvectordict['']=np.zeros(wordsize)
     return wordindex, wordvectordict
 
+def GloVe_embedding(modelpath):
+    embeddingmodel = word2vec.Word2VecKeyedVectors.load_word2vec_format(modelpath, binary=False)
+
+    wordsize = embeddingmodel.vector_size
+    worddict = corpora.dictionary.Dictionary()
+    worddict.doc2bow(embeddingmodel.wv.vocab.keys(), allow_update=True)
+    wordindex = {v: k for k, v in worddict.items()}  # 词语的索引，从0开始编号
+    wordvectordict = {word: embeddingmodel[word] for word in wordindex.keys()}  # 词语的词向量
+    if '' not in wordindex.keys():
+        wordindex[''] = len(wordindex.keys())
+        wordvectordict[''] = np.zeros(wordsize)
+    return wordindex, wordvectordict
 
 def padding_text(texts, mask, padding_word=0, maxlength=None):
     # 将所有句子变为统一长度maxlength，如果maxlength==None，则转为最长句子长度，padding_word：填充词
@@ -189,15 +201,15 @@ def remove_unk(x, n_words):
 
 def load_data(path, n_words):
     with open(path, 'rb') as f:
-        dataset_x, dataset_label, dataset_multi, dataset_length, dataset_rank, corr= pickle.load(f)
-        train_set_x, train_set_y, train_set_multi, train_set_length, train_set_rank, corr= dataset_x[0], dataset_label[0], dataset_multi[0], dataset_length[0], dataset_rank[0], corr
-        test_set_x, test_set_y, test_set_multi, test_set_length, test_set_rank, corr = dataset_x[1], dataset_label[1], dataset_multi[1], dataset_length[1],  dataset_rank[1],  corr
-    # print("trainsss",test_set_x)
+        dataset_x, dataset_label, dataset_multi, dataset_length, dataset_rank, corr, dataset_target= pickle.load(f)
+        train_set_x, train_set_y, train_set_multi, train_set_length, train_set_rank, corr, train_set_target = dataset_x[0], dataset_label[0], dataset_multi[0], dataset_length[0], dataset_rank[0], corr, dataset_target[0]
+        test_set_x, test_set_y, test_set_multi, test_set_length, test_set_rank, corr, test_set_target = dataset_x[1], dataset_label[1], dataset_multi[1], dataset_length[1],  dataset_rank[1],  corr, dataset_target[1]
+
     #remove unknown words
-    train_set_x = [remove_unk(x, n_words) for x in train_set_x]
-    test_set_x = [remove_unk(x, n_words) for x in test_set_x]
-    # print("trainsssssss", test_set_x)
-    return [train_set_x, train_set_y, train_set_multi, train_set_length, train_set_rank, corr], [test_set_x, test_set_y, test_set_multi, test_set_length, test_set_rank, corr]
+    # train_set_x = [remove_unk(x, n_words) for x in train_set_x]
+    # test_set_x = [remove_unk(x, n_words) for x in test_set_x]
+
+    return [train_set_x, train_set_y, train_set_multi, train_set_length, train_set_rank, corr, train_set_target], [test_set_x, test_set_y, test_set_multi, test_set_length, test_set_rank, corr, test_set_target]
 
 
 if __name__ == "__main__":

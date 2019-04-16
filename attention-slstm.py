@@ -520,7 +520,7 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
     print("Total loss:")
     print(total_cost)
     accuracy = correct / total
-    return accuracy, text_alphas
+    return accuracy, to_print_total
 
 def train_test_model(config, i, session, model, train_dataset, test_dataset, best_acc, times, num):
     # compute lr_decay
@@ -533,7 +533,7 @@ def train_test_model(config, i, session, model, train_dataset, test_dataset, bes
     start_time = time.time()
     train_acc, to_print_total = run_epoch(session, config, model, train_dataset, model.train_op, config.keep_prob, True)
     # train_acc, to_print_total = run_epoch(session, config, model, train_dataset, config.keep_prob, True)
-    print("Training Accuracy = %.4f, time = %.3f seconds\n" % (train_acc, time.time() - start_time))
+    print("Training Emotion Accuracy = %.4f, time = %.3f seconds\n" % (train_acc, time.time() - start_time))
 
     # testing
     start_time = time.time()
@@ -598,6 +598,7 @@ if __name__ == "__main__":
     # embedding_mat = [wordvectordict[word] for index, word in enumerate(wordindex)]  # dict，序号key和向量value。得到每个单词对应的向量
     # embedding_mat = np.array(embedding_mat, dtype=np.float32)  # array，得到每个单词对应的向量
 
+    # Load data
     wordindex, wordvectordict = data_helper.GloVe_embedding('./data/CauseGloVectors.txt')
     embedding_mat = [wordvectordict[word] for index, word in
                      enumerate(wordindex.keys())]  # dict，序号key和向量value。得到每个单词对应的向量
@@ -605,16 +606,19 @@ if __name__ == "__main__":
 
     with open('./data/emotionCauseText.pkl','rb') as file:
         articles = pickle.load(file)
-    with open('./data/emotionCauseCauseLabel.pkl','rb') as file:
+    with open('./data/emotionCauseEmotionLabel.pkl','rb') as file:
         labels = pickle.load(file)
+    with open('./data/emotionCauseCauseLabel.pkl','rb') as file:
+        targetlabel = pickle.load(file)
+    print('load data finished')
 
+    # Data processing
     texts=[]
     textvec=[]
     for article in articles:
         t, v=data_helper.doc2vec(article, wordindex)
         texts.append(t)
         textvec.append(v)
-    print('load data finished')
 
     multilabel = []
     rank = []
@@ -645,22 +649,21 @@ if __name__ == "__main__":
         ylength_train = [length[i] for i in train_index]
         ymulti_train = [multilabel[i] for i in train_index]
         yrank_train = [rank[i] for i in train_index]
+        target_train = [targetlabel[i] for i in train_index]
 
         x_test = [textvec[i] for i in test_index]
-        y_test = [labels[i] for i in test_index]
+        y_test = [one_labels[i] for i in test_index]
         ylength_test = [length[i] for i in test_index]
         ymulti_test = [multilabel[i] for i in test_index]
         yrank_test = [rank[i] for i in test_index]
+        target_test = [targetlabel[i] for i in test_index]
 
         path = './run_result/' + dataset_name + '_label_' + str(times) + '.txt'
-        f1 = open(path, 'w', encoding="utf-8")
-        for i in y_test:
-            for d in i:
-                f1.write(str(d)+ ' ')
-            f1.write('\n')
-        f1.close()
-
-        y_test = data_helper.singlelabel(y_test)
+        with open(path, 'w', encoding="utf-8") as file:
+            for i in target_test:
+                for d in i:
+                    file.write(str(d)+ ' ')
+                file.write('\n')
         print('data split finished')
 
         transformed_text = [x_train] + [x_test]  # valid is none
@@ -668,10 +671,11 @@ if __name__ == "__main__":
         transformed_multi = [ymulti_train] + [ymulti_test]
         transformed_length = [ylength_train] + [ylength_test]
         transformed_rank = [yrank_train] + [yrank_test]
+        transformed_target = [target_train] + [target_test]
 
         # print("xtrain",x_train)
         path = './run_result/' + dataset_name + '_dataset_' + str(times)
-        pickle.dump(((transformed_text, transformed_label, transformed_multi, transformed_length, transformed_rank, corr)),open(path, 'wb'))
+        pickle.dump(((transformed_text, transformed_label, transformed_multi, transformed_length, transformed_rank, corr, transformed_target)),open(path, 'wb'))
 
         train_dataset, test_dataset = data_helper.load_data(path=path, n_words=config.vocab_size)
 

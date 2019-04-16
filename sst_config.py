@@ -2,8 +2,8 @@
     vocab_size=15000
     max_grad_norm = 5
     init_scale = 0.05
-    hidden_size = 100
-    attention_size=100
+    hidden_size = 300
+    attention_size=300
     lr_decay = 0.95
     valid_portion=0.0
     batch_size=1    #一次的文章数目

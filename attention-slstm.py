@@ -549,25 +549,13 @@ def train_test_model(config, i, session, model, train_dataset, test_dataset, tim
     print("Test Accuracy = %.4f\n, Target Accuracy = %.4f" % (test_acc, test_target_acc))
     print("Time = %.3f seconds\n" % (time.time() - start_time))
 
-    # if test_acc > best_acc:
-    #     best_acc = test_acc
-    #     print("Best accuracy, save results to file.")
-    #     path = './run_result/' + dataset_name + '_outputs_' + str(times) + '.txt'
-    #     f = open(path, 'w')
-    #     f.write(str(best_acc) + '\n')
-    #     for i in range(2, to_print_total.shape[0]):
-    #         for d in to_print_total[i]:
-    #             f.write(str(d) + ' ')
-    #         f.write('\n')
-    #     f.close()
-
     print("Save results to file.")
     path = './run_result/' + dataset_name + '_outputs.txt'
     train_print = "Training Emotion Accuracy = " + str(train_acc) + ", Training Target Accuracy = " + str(train_target_acc) + "\n"
     test_print = "Testing Emotion Accuracy = " + str(test_acc) + ", Testing Target Accuracy = " + str(test_target_acc) + "\n"
-    str = str(times)+':\n' + train_print + test_print
+    print_total = str(times)+':\n' + train_print + test_print
     with open(path, 'a+', encoding='UTF-8') as file:
-        file.write(str)
+        file.write(print_total)
 
     return
 
@@ -662,13 +650,13 @@ if __name__ == "__main__":
         yrank_test = [rank[i] for i in test_index]
         target_test = [targetlabel[i] for i in test_index]
 
-        path = './run_result/' + dataset_name + '_label_' + str(times) + '.txt'
-        with open(path, 'w', encoding="utf-8") as file:
-            for i in target_test:
-                for d in i:
-                    file.write(str(d)+ ' ')
-                file.write('\n')
-        print('data split finished')
+        # path = './run_result/' + dataset_name + '_label_' + str(times) + '.txt'
+        # with open(path, 'w', encoding="utf-8") as file:
+        #     for i in target_test:
+        #         for d in i:
+        #             file.write(str(d)+ ' ')
+        #         file.write('\n')
+        # print('data split finished')
 
         transformed_text = [x_train] + [x_test]  # valid is none
         transformed_label = [y_train] + [y_test]

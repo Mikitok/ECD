@@ -491,19 +491,19 @@ def run_epoch(session, config, model, data, eval_op, keep_prob, is_training):
 
         # 计算文本实际长度
         text_mask=[len(s) for s in x]
+
         # 对文本做padding
-        # print("document padding")
         text_padding=data_helper.padding_text(x, text_mask, padding_word=[0])
-        # print("textpadding",text_padding)
 
         x=[]
         for j in range(len(inds)):
-           x=x+text_padding[j]
+           x = x + text_padding[j]
         config.sentence_size = len(x) / len(inds)
+
         # 计算每个句子长度
         sentence_mask=[len(s) for s in x]
         # 对句子做padding
-        sentence_padding=data_helper.padding_text(x, sentence_mask, padding_word=0)
+        sentence_padding = data_helper.padding_text(x, sentence_mask, padding_word=0)
 
         x = np.array([np.array(s) for s in sentence_padding])
 
@@ -613,6 +613,7 @@ if __name__ == "__main__":
         labels = pickle.load(file)
     with open('./data/emotionCauseCauseLabel.pkl','rb') as file:
         targetlabel = pickle.load(file)
+    targetlabel = data_helper.singlelabel(targetlabel)
     print('load data finished')
 
     # Data processing
